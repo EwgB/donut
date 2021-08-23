@@ -6,6 +6,7 @@ import javax.persistence.*;
 import java.sql.Timestamp;
 
 @Entity
+@Table(name = "orders")
 public class Order {
 
     /**
@@ -17,15 +18,16 @@ public class Order {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = false, name = "order_id")
     private int orderId;
 
-    @Column(nullable = false)
+    @Column(nullable = false, name = "client_id")
     private int clientId;
 
-    @Column(nullable = false)
+    @Column(nullable = false, name = "donut_quantity")
     private int donutQuantity;
 
-    @Column(nullable = false)
+    @Column(nullable = false, name = "order_time")
     private Timestamp orderTime;
 
     /**
@@ -33,7 +35,7 @@ public class Order {
      * This is info is derived from the customer number and
      * is not stored in the database.
      */
-    @Formula("clientId < " + PREMIUM_CLIENT_CUTOFF)
+    @Formula("client_id < " + PREMIUM_CLIENT_CUTOFF)
     private boolean isPriority;
 
     public Order() {
