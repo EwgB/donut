@@ -1,6 +1,11 @@
 package de.belzmann.donut.service;
 
-import de.belzmann.donut.model.*;
+import de.belzmann.donut.model.Order;
+import de.belzmann.donut.model.OrderDto;
+import de.belzmann.donut.model.OrderRepository;
+import de.belzmann.donut.model.exceptions.MultipleOrdersException;
+import de.belzmann.donut.model.exceptions.OrderNotFoundException;
+import de.belzmann.donut.model.exceptions.OrderTooLargeException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,7 +40,7 @@ public class OrderService {
      * The maximal size of donuts in one delivery. Since no delivery can contain more than 50 donuts,
      * and orders can't be split for a delivery, an order can conversely also have no more than 50 donuts.
      */
-    private static final int MAX_DELIVERY_SIZE = 50;
+    public static final int MAX_DELIVERY_SIZE = 50;
 
     private final OrderRepository repository;
 
@@ -62,7 +67,15 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderDto addNewOrder(int clientId, int donutQuantity) throws MultipleOrdersException, OrderNotFoundException {
+    public OrderDto addNewOrder(int clientId, int donutQuantity)
+            throws MultipleOrdersException, OrderNotFoundException, OrderTooLargeException {
+        // Check if the order is too big. Since the cart can only hold MAX_DELIVERY_SIZE
+        // and orders can't be split for delivery, an order can't be larger than
+        // MAX_DELIVERY_SIZE, too.
+        if (donutQuantity > MAX_DELIVERY_SIZE) {
+            throw new OrderTooLargeException();
+        }
+
         // Check whether there is already an order for the client. Only one order per client is permitted.
         if (repository.existsByClientId(clientId)) {
             throw new MultipleOrdersException();

@@ -1,4 +1,4 @@
-package de.belzmann.donut.model;
+package de.belzmann.donut.model.exceptions;
 
 /**
  * Exception representing that an order was tried to be added

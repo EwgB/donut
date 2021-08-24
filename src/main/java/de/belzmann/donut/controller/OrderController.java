@@ -1,8 +1,9 @@
 package de.belzmann.donut.controller;
 
-import de.belzmann.donut.model.MultipleOrdersException;
 import de.belzmann.donut.model.OrderDto;
-import de.belzmann.donut.model.OrderNotFoundException;
+import de.belzmann.donut.model.exceptions.MultipleOrdersException;
+import de.belzmann.donut.model.exceptions.OrderNotFoundException;
+import de.belzmann.donut.model.exceptions.OrderTooLargeException;
 import de.belzmann.donut.service.OrderService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -38,6 +39,9 @@ public class OrderController {
     OrderDto newOrder(@RequestParam int clientId, @RequestParam int quantity) {
         try {
             return service.addNewOrder(clientId, quantity);
+        } catch (OrderTooLargeException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    String.format("The order is too large, orders can't exceed %d donuts.", OrderService.MAX_DELIVERY_SIZE));
         } catch (MultipleOrdersException e) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "Only one order per client is permitted.");
