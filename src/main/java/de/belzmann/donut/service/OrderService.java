@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -49,9 +50,12 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public List<OrderQueueEntry> getAllOrderQueueEntries() {
+    public List<OrderQueueEntry> getAllOrderQueueEntries(Optional<Integer> maxCount) {
         try (Stream<OrderQueueEntry> orders = getAllOrderQueueEntriesInternal()) {
-            return getAllOrderQueueEntriesInternal().collect(Collectors.toList());
+            return maxCount
+                    .map(orders::limit)
+                    .orElse(orders)
+                    .collect(Collectors.toList());
         }
     }
 
