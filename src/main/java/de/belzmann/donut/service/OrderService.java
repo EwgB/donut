@@ -54,6 +54,15 @@ public class OrderService {
      */
     private Instant lastDeliveryTime;
 
+    /**
+     * Tracks the contents of the cart when a delivery has been requested.
+     * See description of {@link #getNextDelivery}.
+     * The elements of this list are ignored when orders are requested in the
+     * {@link de.belzmann.donut.controller.OrderController}
+     */
+    @SuppressWarnings("unused")
+    private List<Order> cartContents;
+
     public OrderService(OrderRepository repository) {
         this.repository = repository;
         this.lastDeliveryTime = Instant.now();
@@ -61,7 +70,7 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public List<OrderDto> getAllOrderQueueEntries() {
-        try (Stream<OrderDto> orders = getAllOrderQueueEntriesInternal()) {
+        try (Stream<OrderDto> orders = getAllOrderDtosInternal()) {
             return orders.collect(Collectors.toList());
         }
     }
@@ -99,6 +108,62 @@ public class OrderService {
     }
 
     /**
+     * Deletes an order for a particular client
+     *
+     * @param clientId The id of the client for whom the order is supposed to be deleted.
+     * @throws OrderNotFoundException thrown when there are no orders for the specified customer
+     */
+    @Transactional
+    public void deleteOrderByCustomerId(int clientId) throws OrderNotFoundException {
+        if (repository.existsByClientId(clientId)) {
+            repository.deleteByClientId(clientId);
+        } else {
+            throw new OrderNotFoundException();
+        }
+    }
+
+    /**
+     * Returns a list of orders for the next delivery. Orders are returned
+     * in their priority queue order (ordered by premium customers and order
+     * timestamp). Each delivery can at most contain 50 donuts, and orders
+     * can neither be split nor changed.
+     * To ensure data consistency and idempotency of the request, a call to
+     * this method does not remove any orders from the database, or changes
+     * them in any way. Rather it moves them into a in-memory list and
+     * subsequent calls to the method return the same list.
+     * To finish a delivery and remove those orders, the method {@link #finishDelivery}
+     * must be called.
+     */
+    @Transactional(readOnly = true)
+    public List<Order> getNextDelivery() {
+        if (cartContents == null) {
+            try (Stream<Order> orders = repository.findAllOrdersByPriority()) {
+                // Collect all orders until the MAX_DELIVERY_SIZE is reached
+                final AtomicInteger deliverySize = new AtomicInteger(0);
+                cartContents = orders
+                        .takeWhile(order -> deliverySize.addAndGet(order.getDonutQuantity()) <= MAX_DELIVERY_SIZE)
+                        .collect(Collectors.toList());
+                lastDeliveryTime = Instant.now();
+            }
+        }
+        return cartContents;
+    }
+
+    /**
+     * Finishes a delivery by deleting the orders from the database.
+     * Its necessary to call this after finishing a delivery because otherwise
+     * subsequent calls to {@see #getNextDelivery} will return the same list
+     * of orders.
+     */
+    @Transactional
+    public void finishDelivery() {
+        if (cartContents != null) {
+            repository.deleteAll(cartContents);
+            cartContents = null;
+        }
+    }
+
+    /**
      * Searches for a specific order with the specified predicate.
      *
      * @param predicate A function that is used to evaluate whether a given order matches the desired one.
@@ -113,7 +178,7 @@ public class OrderService {
          * This might be a costly operation depending on the application, but is
          * acceptable in this case, considering the queue shouldn't get too long.
          */
-        try (Stream<OrderDto> orders = getAllOrderQueueEntriesInternal()) {
+        try (Stream<OrderDto> orders = getAllOrderDtosInternal()) {
             return orders
                     .filter(predicate)
                     .findAny()
@@ -128,7 +193,7 @@ public class OrderService {
      * in the database explicitly, since it would change on every insert or delete) and the
      * approximate wait time (this is also not in the database).
      */
-    private Stream<OrderDto> getAllOrderQueueEntriesInternal() {
+    private Stream<OrderDto> getAllOrderDtosInternal() {
         // Counts the position of the order in the queue
         final AtomicInteger queuePosition = new AtomicInteger(1);
 
@@ -144,6 +209,7 @@ public class OrderService {
         final AtomicInteger deliverySize = new AtomicInteger(0);
 
         return repository.findAllOrdersByPriority()
+                .filter(order -> cartContents == null || !cartContents.contains(order))
                 .map(order -> {
                     // Check if this order would fit into the current delivery and compute the approximate wait time
                     // accordingly (under the assumption that the delivery is every DELIVERY_INTERVAL).
@@ -162,20 +228,5 @@ public class OrderService {
                     String waitDurationString = String.format("%d:%02d", waitDuration.toMinutesPart(), waitDuration.toSecondsPart());
                     return new OrderDto(order, queuePosition.getAndIncrement(), waitDurationString);
                 });
-    }
-
-    /**
-     * Deletes an order for a particular client
-     *
-     * @param clientId The id of the client for whom the order is supposed to be deleted.
-     * @throws OrderNotFoundException thrown when there are no orders for the specified customer
-     */
-    @Transactional
-    public void deleteOrderByCustomerId(int clientId) throws OrderNotFoundException {
-        if (repository.existsByClientId(clientId)) {
-            repository.deleteByClientId(clientId);
-        } else {
-            throw new OrderNotFoundException();
-        }
     }
 }
