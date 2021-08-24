@@ -1,7 +1,7 @@
 package de.belzmann.donut.service;
 
 import de.belzmann.donut.model.Order;
-import de.belzmann.donut.model.OrderQueueEntry;
+import de.belzmann.donut.model.OrderDto;
 import de.belzmann.donut.model.OrderRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -59,8 +59,8 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public List<OrderQueueEntry> getAllOrderQueueEntries(Optional<Integer> maxCount) {
-        try (Stream<OrderQueueEntry> orders = getAllOrderQueueEntriesInternal()) {
+    public List<OrderDto> getAllOrderQueueEntries(Optional<Integer> maxCount) {
+        try (Stream<OrderDto> orders = getAllOrderQueueEntriesInternal()) {
             return maxCount
                     .map(orders::limit)
                     .orElse(orders)
@@ -69,7 +69,7 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderQueueEntry addNewOrder(int clientId, int donutQuantity) {
+    public OrderDto addNewOrder(int clientId, int donutQuantity) {
         // Check whether there is already an order for the client. Only one order per client is permitted.
         if (repository.existsByClientId(clientId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only one order per client is permitted.");
@@ -80,10 +80,10 @@ public class OrderService {
         em.refresh(newOrder);
 
         // TODO: Determine correct queue position and wait time
-        return new OrderQueueEntry(newOrder, 1, "test");
+        return new OrderDto(newOrder, 1, "test");
     }
 
-    private Stream<OrderQueueEntry> getAllOrderQueueEntriesInternal() {
+    private Stream<OrderDto> getAllOrderQueueEntriesInternal() {
         // Counts the position of the order in the queue
         final AtomicInteger queuePosition = new AtomicInteger(1);
 
@@ -115,7 +115,7 @@ public class OrderService {
                     }
                     Duration waitDuration = Duration.of(currentWaitTime, ChronoUnit.SECONDS);
                     String waitDurationString = String.format("%d:%02d", waitDuration.toMinutesPart(), waitDuration.toSecondsPart());
-                    return new OrderQueueEntry(order, queuePosition.getAndIncrement(), waitDurationString);
+                    return new OrderDto(order, queuePosition.getAndIncrement(), waitDurationString);
                 });
     }
 }

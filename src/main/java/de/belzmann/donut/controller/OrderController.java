@@ -1,6 +1,6 @@
 package de.belzmann.donut.controller;
 
-import de.belzmann.donut.model.OrderQueueEntry;
+import de.belzmann.donut.model.OrderDto;
 import de.belzmann.donut.service.OrderService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,7 +27,7 @@ public class OrderController {
     // Aggregate root
     // tag::get-aggregate-root[]
     @GetMapping("/orders")
-    List<OrderQueueEntry> all(@RequestParam Optional<Integer> maxCount) {
+    List<OrderDto> all(@RequestParam Optional<Integer> maxCount) {
         return service.getAllOrderQueueEntries(maxCount);
     }
     // end::get-aggregate-root[]
@@ -40,7 +40,7 @@ public class OrderController {
      * @return the added order with the queue position and the approximate wait time
      */
     @PostMapping("/orders")
-    OrderQueueEntry newOrder(@RequestParam int clientId, @RequestParam int quantity) {
+    OrderDto newOrder(@RequestParam int clientId, @RequestParam int quantity) {
         return service.addNewOrder(clientId, quantity);
     }
 }
