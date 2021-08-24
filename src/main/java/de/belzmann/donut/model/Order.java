@@ -19,7 +19,7 @@ public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(nullable = false, name = "order_id")
-    private int orderId;
+    private Integer orderId;
 
     @Column(nullable = false, name = "client_id")
     private int clientId;
@@ -36,7 +36,7 @@ public class Order {
      * is not stored in the database.
      */
     @Formula("client_id < " + PREMIUM_CLIENT_CUTOFF)
-    private boolean isPriority;
+    private Boolean isPriority;
 
     public Order() {
     }
@@ -47,11 +47,11 @@ public class Order {
         this.orderTime = orderTime;
     }
 
-    public int getOrderId() {
+    public Integer getOrderId() {
         return orderId;
     }
 
-    public Order setOrderId(int orderId) {
+    public Order setOrderId(Integer orderId) {
         this.orderId = orderId;
         return this;
     }
@@ -62,7 +62,6 @@ public class Order {
 
     public Order setClientId(int clientId) {
         this.clientId = clientId;
-        this.isPriority = (clientId < PREMIUM_CLIENT_CUTOFF);
         return this;
     }
 
@@ -84,7 +83,7 @@ public class Order {
         return this;
     }
 
-    public boolean isPriority() {
+    public Boolean isPriority() {
         return isPriority;
     }
 }

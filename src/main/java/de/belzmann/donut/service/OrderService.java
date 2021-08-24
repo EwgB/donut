@@ -1,10 +1,16 @@
 package de.belzmann.donut.service;
 
+import de.belzmann.donut.model.Order;
 import de.belzmann.donut.model.OrderQueueEntry;
 import de.belzmann.donut.model.OrderRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -37,6 +43,9 @@ public class OrderService {
 
     private final OrderRepository repository;
 
+    @PersistenceContext
+    private EntityManager em;
+
     /**
      * Stores the time of the last delivery.
      * Used to calculate the approximate wait time for orders.
@@ -57,6 +66,21 @@ public class OrderService {
                     .orElse(orders)
                     .collect(Collectors.toList());
         }
+    }
+
+    @Transactional
+    public OrderQueueEntry addNewOrder(int clientId, int donutQuantity) {
+        // Check whether there is already an order for the client. Only one order per client is permitted.
+        if (repository.existsByClientId(clientId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only one order per client is permitted.");
+        }
+
+        // Create and save the order. Refresh the entity so that the state of the derived column is correct.
+        final Order newOrder = repository.save(new Order(clientId, donutQuantity, Timestamp.from(Instant.now())));
+        em.refresh(newOrder);
+
+        // TODO: Determine correct queue position and wait time
+        return new OrderQueueEntry(newOrder, 1, "test");
     }
 
     private Stream<OrderQueueEntry> getAllOrderQueueEntriesInternal() {
@@ -94,5 +118,4 @@ public class OrderService {
                     return new OrderQueueEntry(order, queuePosition.getAndIncrement(), waitDurationString);
                 });
     }
-
 }

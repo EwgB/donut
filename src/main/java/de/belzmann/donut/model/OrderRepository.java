@@ -9,4 +9,6 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
 
     @Query("SELECT o FROM Order o ORDER BY isPriority DESC, orderTime ASC")
     Stream<Order> findAllOrdersByPriority();
+
+    boolean existsByClientId(int clientId);
 }
