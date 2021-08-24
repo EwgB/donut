@@ -83,4 +83,19 @@ public class OrderController {
         }
     }
 
+    /**
+     * Deletes an order for a particular client. Returns a 404 error when no order for customer is found.
+     *
+     * @param clientId The id of the client for whom the order is supposed to be deleted.
+     */
+    @DeleteMapping("/orders")
+    void deleteOrderByCustomerId(@RequestParam int clientId) {
+        try {
+            service.deleteOrderByCustomerId(clientId);
+        } catch (OrderNotFoundException e) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    String.format("No order for customer with ID %d not found.", clientId));
+        }
+    }
 }

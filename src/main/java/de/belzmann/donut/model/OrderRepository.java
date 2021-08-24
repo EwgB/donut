@@ -11,4 +11,6 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
     Stream<Order> findAllOrdersByPriority();
 
     boolean existsByClientId(int clientId);
+
+    void deleteByClientId(int clientId);
 }

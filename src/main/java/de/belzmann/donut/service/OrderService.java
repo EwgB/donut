@@ -150,4 +150,19 @@ public class OrderService {
                     return new OrderDto(order, queuePosition.getAndIncrement(), waitDurationString);
                 });
     }
+
+    /**
+     * Deletes an order for a particular client
+     *
+     * @param clientId The id of the client for whom the order is supposed to be deleted.
+     * @throws OrderNotFoundException thrown when there are no orders for the specified customer
+     */
+    @Transactional
+    public void deleteOrderByCustomerId(int clientId) throws OrderNotFoundException {
+        if (repository.existsByClientId(clientId)) {
+            repository.deleteByClientId(clientId);
+        } else {
+            throw new OrderNotFoundException();
+        }
+    }
 }
