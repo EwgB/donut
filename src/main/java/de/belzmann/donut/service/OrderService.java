@@ -1,12 +1,8 @@
 package de.belzmann.donut.service;
 
-import de.belzmann.donut.model.Order;
-import de.belzmann.donut.model.OrderDto;
-import de.belzmann.donut.model.OrderRepository;
-import org.springframework.http.HttpStatus;
+import de.belzmann.donut.model.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
@@ -15,9 +11,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -59,30 +55,66 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public List<OrderDto> getAllOrderQueueEntries(Optional<Integer> maxCount) {
+    public List<OrderDto> getAllOrderQueueEntries() {
         try (Stream<OrderDto> orders = getAllOrderQueueEntriesInternal()) {
-            return maxCount
-                    .map(orders::limit)
-                    .orElse(orders)
-                    .collect(Collectors.toList());
+            return orders.collect(Collectors.toList());
         }
     }
 
     @Transactional
-    public OrderDto addNewOrder(int clientId, int donutQuantity) {
+    public OrderDto addNewOrder(int clientId, int donutQuantity) throws MultipleOrdersException, OrderNotFoundException {
         // Check whether there is already an order for the client. Only one order per client is permitted.
         if (repository.existsByClientId(clientId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only one order per client is permitted.");
+            throw new MultipleOrdersException();
         }
 
-        // Create and save the order. Refresh the entity so that the state of the derived column is correct.
+        // Create and save the order. Refresh the entity so that the state of the derived priority column is correct.
         final Order newOrder = repository.save(new Order(clientId, donutQuantity, Timestamp.from(Instant.now())));
         em.refresh(newOrder);
 
-        // TODO: Determine correct queue position and wait time
-        return new OrderDto(newOrder, 1, "test");
+        return getOrderById(newOrder.getOrderId());
     }
 
+    @Transactional(readOnly = true)
+    public OrderDto getOrderById(int id) throws OrderNotFoundException {
+        return findOrderWithPredicate(orderDto -> id == orderDto.orderId);
+    }
+
+    @Transactional(readOnly = true)
+    public OrderDto getOrderByCustomerId(int id) throws OrderNotFoundException {
+        return findOrderWithPredicate(orderDto -> id == orderDto.clientId);
+    }
+
+    /**
+     * Searches for a specific order with the specified predicate.
+     *
+     * @param predicate A function that is used to evaluate whether a given order matches the desired one.
+     * @return The found order
+     */
+    private OrderDto findOrderWithPredicate(Predicate<? super OrderDto> predicate)
+            throws OrderNotFoundException {
+        /* Because we need to determine the position of the order in the queue
+         * and the estimated wait time, we can't just fetch the requested order
+         * from the database. We actually have to get all previous orders, too,
+         * since this data is not stored in the database.
+         * This might be a costly operation depending on the application, but is
+         * acceptable in this case, considering the queue shouldn't get too long.
+         */
+        try (Stream<OrderDto> orders = getAllOrderQueueEntriesInternal()) {
+            return orders
+                    .filter(predicate)
+                    .findAny()
+                    .orElseThrow(OrderNotFoundException::new);
+        }
+    }
+
+    /**
+     * Reads a stream of all orders in the database and converts them into OrderDto objects.
+     * The orders are returned from the database already sorted in the correct queue order.
+     * The conversion into DTOs determines the queue position (which is obviously not stored
+     * in the database explicitly, since it would change on every insert or delete) and the
+     * approximate wait time (this is also not in the database).
+     */
     private Stream<OrderDto> getAllOrderQueueEntriesInternal() {
         // Counts the position of the order in the queue
         final AtomicInteger queuePosition = new AtomicInteger(1);
